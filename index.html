@@ -339,7 +339,7 @@ confusionMatrix(pred, testing$classe)</code></pre>
 </div>
 <div id="classification-and-regression-tree" class="section level3">
 <h3>6.2 Classification And Regression Tree</h3>
-<p>The tree model had comparatively less accuracy, although it had the advantage of being much faster and not requiring multiple processors to run. <strong>The tree model accuracy was 49.43% on the testing set.</strong></p>
+<p>The tree model had comparatively less accuracy, although it had the advantage of being much faster and not requiring multiple processors to run. <strong>The tree model accuracy was 49.43% on the testing set.</strong> As with the random forest model a 10-fold cross validation was used.</p>
 <pre class="r"><code># Fit a CART model
 fitControl &lt;- trainControl(method = &quot;cv&quot;, number = 10)
 modFitTree &lt;- train(classe ~ ., data = training, method = &quot;rpart&quot;, trControl = fitControl)
@@ -379,7 +379,7 @@ confusionMatrix(predTree, testing$classe)</code></pre>
 </div>
 <div id="gradient-boosting" class="section level3">
 <h3>6.3 Gradient Boosting</h3>
-<p><strong>Finally, the gradient boosting model produced an accuracy of 96.33%.</strong> The original expectation was that this would beat the random forest but it did not. One explanation is provided in Elements of Statistical Learning that shows the performance of random forests compared to gradient boosting with increasing numbers of noise variables. When the amount is low they tend to have the same accuracy, but as they increase the gradient boosting seems to outperform random forests. This could be due to the lack of noise in the dataset that is observable in the featurePlot() above.</p>
+<p><strong>Finally, the gradient boosting model produced an accuracy of 96.33%.</strong> Again, a 10-fold cross validation was used. The original expectation was that this would beat the random forest but it did not. One explanation is provided in Elements of Statistical Learning that shows the performance of random forests compared to gradient boosting with increasing numbers of noise variables. When the amount is low they tend to have the same accuracy, but as they increase the gradient boosting seems to outperform random forests. This could be due to the lack of noise in the dataset that is observable in the featurePlot() above.</p>
 <pre class="r"><code># Fit a gradient boosting model
 cluster &lt;- makeCluster(detectCores() - 1)
 registerDoParallel(cluster)
