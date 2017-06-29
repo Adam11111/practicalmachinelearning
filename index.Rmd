@@ -1,7 +1,7 @@
 ---
 title: "Practical Machine Learning Course Project"
 author: "Adam Scarth"
-date: '2017-06-27'
+date: '2017-06-29'
 output: html_document
 ---
 
@@ -9,22 +9,183 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## 1.0 Introduction  
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The purpose of this project is to apply machine learning techniques to the Human Activity Recognition dataset in order to classify workout activities by how well they are done. The data was generously made available by the authors of the original study and can be found at the links below.  
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Original Study  
+<http://groupware.les.inf.puc-rio.br/har>  
+Training dataset  
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>  
+Coursera test dataset with 20 samples to predict on  
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>  
 
-```{r cars}
-summary(cars)
+
+## 2.0 Background Research  
+
+Prior to conducting the analysis it was necessary to review and understand what the original study was about and what the data contained. The researchers attempted to study how wearable devices could detect not just what someone was doing, but how well they were doing it. By using four kinetic motion sensors on the belt, glove, arm, and dumbell they were able to record the motions that the test subjects made. The test subjects were then instructed to perform the dumbell curl properly, as well as with several categories of mistakes:  
+
+* exactly according to the specification (Class A)  
+* throw-ing the elbows to the front (Class B)  
+* lifting the dumbbell only halfway (Class C)  
+* lowering the dumbbell only halfway (Class D)  
+* and throwing the hips to the front (Class E)  
+
+The original research trials were meant to determine if these mistakes could be detected and identified separately from the correct technique. It appears their random forest model had an accuracy of 98.2% [Section 5.2], so we should expect that we can at least achieve this measure.  
+
+Research paper:  
+<http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf>  
+
+
+## 3.0 Install Packages and Download Files  
+
+The first step is to get our packages ready. As the machine learning methods take a lot of computing power we will use multi-core processing. The method to do this is documented very well here:  
+<https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md>  
+
+```{r results="hide", message=FALSE, cache=TRUE}
+library(caret)
+library(dplyr)
+library(parallel)
+library(doParallel)
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+Then, the training and test files are downloaded and read into R using read.csv(). The full training set will be split later into a real training/test set so it is labelled "orig". The 20 test cases for the quiz are also labelled with a "20" at the end.  
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r results="hide", cache=TRUE}
+# Download files
+fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileURL, "./pml-training.csv", method = "curl")
+fileURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileURL, "./pml-testing.csv", method = "curl")
+
+# Load data
+trainingorig <- read.csv("./pml-training.csv")
+testing20 <- read.csv("./pml-testing.csv")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## 4.0 Cleaning the Data  
+
+Here is where some initial exploration of the data occurs to see the size and what variables are present.  
+
+```{r results = "hide", cache=TRUE}
+# High level check of what the data is
+summary(trainingorig)
+head(trainingorig)
+str(trainingorig)
+dim(trainingorig)
+names(trainingorig)
+trainingorig[1:10, 160]
+head(testing20)
+str(testing20)
+dim(testing20)
+names(trainingorig)[1:20]
+trainingorig$cvtd_timestamp
+trainingorig$X
+trainingorig$new_window
+```
+
+
+The "trainingorig"" data is then split into a true training and testing set using a 60/40 split.  
+
+```{r results = "hide", cache=TRUE}
+# Split to model training and test sets
+set.seed(42)
+inTrain <- createDataPartition(y = trainingorig$classe, p = 0.6, list = FALSE)
+training <- trainingorig[inTrain, ]
+testing <- trainingorig[-inTrain, ]
+```
+
+
+The training data contains several columns with descriptive information not necessary for the prediction model. Examples include the test subject names, and for the purposes of this study we will remove the timestamps and not consider this a time series analysis. Some exploration also identified mostly empty columns that were removed. Most were skewness or kurtosis measures.  
+
+```{r results= "hide", fig.keep="none", message=FALSE, cache=TRUE}
+# Find features with too many NA's and remove
+# An arbitrary threshold of 20% was used, but columns with missing values were generally over 90% empty
+naList <- colMeans(is.na(training))
+qplot(naList)
+colFilter <- naList < 0.2
+names(training)[colFilter]
+names(training)[!colFilter]
+training <- training[, colFilter]
+dim(training)
+
+# Remove features 1 through 7 which contain experiment information vs. predictive values
+names(training)[-(1:7)]
+training <- training[, -(1:7)]
+dim(training)
+colMeans(is.na(training))
+summary(training)
+
+# Check for "" and "#DIV/0!" and remove
+# When all "" were removed there were no more "#DIV/0!" remaining
+str(training)
+colSums(training == "")
+colMeans(training == "")
+colMeans(training == "") > 0.2
+blankList <- colMeans(training == "") > 0.2
+names(training)[blankList]
+names(training)[!blankList]
+training <- training[, !blankList]
+dim(training)
+colSums(training == "#DIV/0!")
+```
+
+
+## Exploratory Data Analysis
+
+With a cleaned dataset we can now generate some plots and run principal component analysis. Using caret packages's featurePlot() function we can review high level if any outliers exist.  
+
+```{r cache=TRUE}
+# Explore features 1 through 26
+featurePlot(x = training[,1:26], y = training$classe, par.strip.text = list(cex = 0.65))
+```
+
+```{r cache=TRUE}
+# Explore features 27 through 52
+featurePlot(x = training[,27:52], y = training$classe, par.strip.text = list(cex = 0.65))
+```
+
+
+Next is to see the graph of principal components 1 and 2 and see if there is any clustering.  
+
+```{r cache=TRUE}
+# Principal component analysis
+preProc <- preProcess(training[, -53], method = "pca", pcaComp = 2)
+trainPC <- predict(preProc, training[, -53])
+trainPC$classe <- training$classe
+qplot(trainPC[, 1], trainPC[, 2], colour = training$classe)
+```
+
+
+Then check the variance reduction of the various features and see if any 1 or 2 features explains the majority of the variance. In this case we will need a lot of features in our model as it is taking up to 10 features to significantly reduce the variance.  
+
+```{r cache=TRUE}
+# Review features
+trainPC2 <- prcomp(training[, -53])
+plot(trainPC2, type = "l", main = "Variance Reduction Graph", sub = "Number of Features")
+```
+
+
+## Model Fitting
+
+On review of the original research it appears a random forest with 10-fold cross validation worked well, so this seems like the best place to start and benchmark against. This model results in an impressive accuracy of 99.27% on the testing set.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
