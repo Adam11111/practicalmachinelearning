@@ -146,7 +146,7 @@ registerDoSEQ()
 
 
 # Review model fit on testing data
-plot(varImp(modFit))
+plot(varImp(modFit), scales = list(cex = 0.6))
 pred <- predict(modFit, newdata = testing)
 confusionMatrix(pred, testing$classe)
 

@@ -222,7 +222,7 @@ stopCluster(cluster)
 registerDoSEQ()
 
 # Review model fit on testing data
-plot(varImp(modFit))
+plot(varImp(modFit), scales = list(cex = 0.6))
 pred <- predict(modFit, newdata = testing)
 confusionMatrix(pred, testing$classe)
 ```
@@ -265,7 +265,7 @@ confusionMatrix(predGBM, testing$classe)
 
 Based on the results it appears that a random forest model is the best approach to this set of data. It is also clearly demonstrated that it is possible to accurately predict the quality of the activity that a person is doing.  
 
-The only challenge, as mentioned in the original study, is that the results may be difficult to extend outside of the original study if it relies on recording mistakes for each individual exercise. Perhaps this could be overcome with more advanced analysis and unsupervised prediction in combination with trained professionals establishing the benchmarks and simply classifying the movements as "good" or "bad" ones.  
+The only challenge, as mentioned in the original study, is that the results may be difficult to extend outside of a controlled environment if it relies on recording mistakes for each individual exercise. Perhaps this could be overcome with more advanced analysis and unsupervised prediction in combination with trained professionals establishing the benchmarks and simply classifying the movements as "good" or "bad" ones.  
 
 Finally, the predicted values on the 20 test cases.  
 
