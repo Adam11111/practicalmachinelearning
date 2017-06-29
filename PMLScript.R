@@ -172,7 +172,7 @@ confusionMatrix(predGBM, testing$classe)
 # Final predicted results on the test data
 pred20 <- predict(modFit, newdata = testing20)
 finalresult <- data.frame(testing20$problem_id, pred20)
-names(finalresult) <- c("problem_id", "predicted")
+names(finalresult) <- c("problem_id", "rf_predicted")
 finalresult
 
 
