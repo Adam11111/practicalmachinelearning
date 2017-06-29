@@ -11,7 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 1.0 Introduction  
 
+
 The purpose of this project is to apply machine learning techniques to the Human Activity Recognition dataset in order to classify workout activities by how well they are done. The data was generously made available by the authors of the original study and can be found at the links below.  
+
 
 Original Study  
 <http://groupware.les.inf.puc-rio.br/har>  
@@ -21,7 +23,9 @@ Coursera test dataset with 20 samples to predict on
 <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>  
 
 
+
 ## 2.0 Background Research  
+
 
 Prior to conducting the analysis it was necessary to review and understand what the original study was about and what the data contained. The researchers attempted to study how wearable devices could detect not just what someone was doing, but how well they were doing it. By using four kinetic motion sensors on the belt, glove, arm, and dumbell they were able to record the motions that the test subjects made. The test subjects were then instructed to perform the dumbell curl properly, as well as with several categories of mistakes:  
 
@@ -37,7 +41,9 @@ Research paper:
 <http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf>  
 
 
+
 ## 3.0 Install Packages and Download Files  
+
 
 The first step is to get our packages ready. As the machine learning methods take a lot of computing power we will use multi-core processing. The method to do this is documented very well here:  
 <https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md>  
@@ -65,7 +71,12 @@ testing20 <- read.csv("./pml-testing.csv")
 ```
 
 
+
 ## 4.0 Cleaning the Data  
+
+
+### 4.1 Initial Inspection
+
 
 Here is where some initial exploration of the data occurs to see the size and what variables are present.  
 
@@ -87,6 +98,9 @@ trainingorig$new_window
 ```
 
 
+### 4.2 Split Training and Test
+
+
 The "trainingorig"" data is then split into a true training and testing set using a 60/40 split.  
 
 ```{r results = "hide", cache=TRUE}
@@ -96,6 +110,9 @@ inTrain <- createDataPartition(y = trainingorig$classe, p = 0.6, list = FALSE)
 training <- trainingorig[inTrain, ]
 testing <- trainingorig[-inTrain, ]
 ```
+
+
+### 4.3 Clean Training Set of Missing Values
 
 
 The training data contains several columns with descriptive information not necessary for the prediction model. Examples include the test subject names, and for the purposes of this study we will remove the timestamps and not consider this a time series analysis. Some exploration also identified mostly empty columns that were removed. Most were skewness or kurtosis measures.  
@@ -133,7 +150,12 @@ colSums(training == "#DIV/0!")
 ```
 
 
-## Exploratory Data Analysis
+
+## 5.0 Exploratory Data Analysis  
+
+
+### 5.1 Visual Inspection of Data  
+
 
 With a cleaned dataset we can now generate some plots and run principal component analysis. Using caret packages's featurePlot() function we can review high level if any outliers exist.  
 
@@ -142,10 +164,15 @@ With a cleaned dataset we can now generate some plots and run principal componen
 featurePlot(x = training[,1:26], y = training$classe, par.strip.text = list(cex = 0.65))
 ```
 
-```{r cache=TRUE}
+```{r eval=FALSE}
 # Explore features 27 through 52
+# *** Plot was surpressed to stick to "less than 5 graphs", but shows similar characteristics to the first
 featurePlot(x = training[,27:52], y = training$classe, par.strip.text = list(cex = 0.65))
 ```
+
+
+
+### 5.2 Principal Component Analysis  
 
 
 Next is to see the graph of principal components 1 and 2 and see if there is any clustering.  
@@ -168,17 +195,87 @@ plot(trainPC2, type = "l", main = "Variance Reduction Graph", sub = "Number of F
 ```
 
 
-## Model Fitting
+## 6.0 Model Fitting  
 
-On review of the original research it appears a random forest with 10-fold cross validation worked well, so this seems like the best place to start and benchmark against. This model results in an impressive accuracy of 99.27% on the testing set.
-
-
+To try and predict the quality of exercise variable we will try 3 different methods: a random forest model, a tree model, and a gradient boosting model.  
 
 
+### 6.1 Random Forest  
 
 
+On review of the original research it appears a random forest with 10-fold cross validation worked well, so this seems like the best place to start and benchmark against. **The random forest model results in an impressive accuracy of 99.27% on the testing set.** On review of the variable importance it seems to be similar to the principal component analysis in that the model requires a lot of features to explain the target variable.  
+
+```{r cache=TRUE, message=FALSE}
+# First, set up multicore processing, leaving one processor for the OS
+cluster <- makeCluster(detectCores() - 1)
+registerDoParallel(cluster)
+
+# Set up 10-fold cross validation and activite parallel processing
+fitControl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+
+# Fit the random forest and review the results
+modFit <- train(classe ~ ., data = training, method = "rf", trControl = fitControl)
+modFit
+
+# Deactivate the multicore processing
+stopCluster(cluster)
+registerDoSEQ()
+
+# Review model fit on testing data
+plot(varImp(modFit))
+pred <- predict(modFit, newdata = testing)
+confusionMatrix(pred, testing$classe)
+```
 
 
+### 6.2 Classification And Regression Tree  
+
+
+The tree model had comparatively less accuracy, although it had the advantage of being much faster and not requiring multiple processors to run. **The tree model accuracy was 49.43% on the testing set.**  
+
+```{r cache=TRUE, message=FALSE}
+# Fit a CART model
+fitControl <- trainControl(method = "cv", number = 10)
+modFitTree <- train(classe ~ ., data = training, method = "rpart", trControl = fitControl)
+predTree <- predict(modFitTree, newdata = testing)
+confusionMatrix(predTree, testing$classe)
+```
+
+
+### 6.3 Gradient Boosting  
+
+
+**Finally, the gradient boosting model produced an accuracy of 96.33%.** The original expectation was that this would beat the random forest but it did not. One explanation is provided in Elements of Statistical Learning that shows the performance of random forests compared to gradient boosting with increasing numbers of noise variables. When the amount is low they tend to have the same accuracy, but as they increase the gradient boosting seems to outperform random forests. This could be due to the lack of noise in the dataset that is observable in the featurePlot() above.  
+
+```{r cache=TRUE, message=FALSE}
+# Fit a gradient boosting model
+cluster <- makeCluster(detectCores() - 1)
+registerDoParallel(cluster)
+fitControl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+modFitGBM <- train(classe ~ ., data = training, method = "gbm", trControl = fitControl, verbose = FALSE)
+stopCluster(cluster)
+registerDoSEQ()
+predGBM <- predict(modFitGBM, newdata = testing)
+confusionMatrix(predGBM, testing$classe)
+```
+
+
+## 7.0 Conclusion and Final Test Case Results  
+
+
+Based on the results it appears that a random forest model is the best approach to this set of data. It is also clearly demonstrated that it is possible to accurately predict the quality of the activity that a person is doing.  
+
+The only challenge, as mentioned in the original study, is that the results may be difficult to extend outside of the original study if it relies on recording mistakes for each individual exercise. Perhaps this could be overcome with more advanced analysis and unsupervised prediction in combination with trained professionals establishing the benchmarks and simply classifying the movements as "good" or "bad" ones.  
+
+Finally, the predicted values on the 20 test cases.  
+
+```{r cache=TRUE}
+# Final predicted results on the test data
+pred20 <- predict(modFit, newdata = testing20)
+finalresult <- data.frame(testing20$problem_id, pred20)
+names(finalresult) <- c("problem_id", "predicted")
+finalresult
+```
 
 
 

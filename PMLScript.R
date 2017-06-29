@@ -149,42 +149,36 @@ registerDoSEQ()
 plot(varImp(modFit))
 pred <- predict(modFit, newdata = testing)
 confusionMatrix(pred, testing$classe)
-pred <- predict(modFit, newdata = testing20)
-pred
 
 
-getTree(modFit$finalModel, k = 2)
+# Fit a CART model
+fitControl <- trainControl(method = "cv", number = 10)
+modFitTree <- train(classe ~ ., data = training, method = "rpart", trControl = fitControl)
+predTree <- predict(modFitTree, newdata = testing)
+confusionMatrix(predTree, testing$classe)
 
 
-
-
-
-
-
-
-
-
-
-
-
-# Fit gradient boosting
-cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+# Fit a gradient boosting model
+cluster <- makeCluster(detectCores() - 1)
 registerDoParallel(cluster)
-
-fitControl <- trainControl(allowParallel = TRUE)
-test <- training[sample(nrow(training), 500), ]
-modFit <- train(classe ~ ., data = test, method = "gbm", trControl = fitControl, verbose = FALSE)
-
+fitControl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+modFitGBM <- train(classe ~ ., data = training, method = "gbm", trControl = fitControl, verbose = FALSE)
 stopCluster(cluster)
 registerDoSEQ()
+predGBM <- predict(modFitGBM, newdata = testing)
+confusionMatrix(predGBM, testing$classe)
 
-pred <- predict(modFit, newdata = testing)
-confusionMatrix(pred, testing$classe)
+
+# Final predicted results on the test data
+pred20 <- predict(modFit, newdata = testing20)
+finalresult <- data.frame(testing20$problem_id, pred20)
+names(finalresult) <- c("problem_id", "predicted")
+finalresult
 
 
-# Fit a GAM
-test <- training[sample(nrow(training), 1000), ]
-modFit2 <- train(classe ~ ., data = test, method = "gam")
+
+
+
 
 
 
