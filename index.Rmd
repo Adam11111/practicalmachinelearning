@@ -29,7 +29,7 @@ Coursera test dataset with 20 samples to predict on
 ## 2.0 Background Research  
 
 
-Prior to conducting the analysis it was necessary to review and understand what the original study was about and what the data contained. The researchers attempted to study how wearable devices could detect not just what someone was doing, but how well they were doing it. By using four kinetic motion sensors on the belt, glove, arm, and dumbell they were able to record the motions that the test subjects made. The test subjects were then instructed to perform the dumbell curl properly, as well as with several categories of mistakes:  
+Prior to conducting the analysis it was necessary to review and understand what the original study was about and what the data contained. The researchers attempted to study how wearable devices could detect not just what someone was doing, but how well they were doing it. By using four kinetic motion sensors on the belt, glove, arm, and on a dumbell they were able to record the motions that the test subjects made. The test subjects were then instructed to perform the dumbell curl properly, as well as with several categories of mistakes:  
 
 * exactly according to the specification (Class A)  
 * throw-ing the elbows to the front (Class B)  
